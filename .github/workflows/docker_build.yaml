@@ -26,3 +26,4 @@ jobs:
         repository: kbase/narrative/narrative-dev
         tags: ci-test
         tag_with_ref: true
+        tag_with_sha: true
