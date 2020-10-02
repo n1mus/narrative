@@ -29,10 +29,12 @@ module.exports = function (config) {
             'kbase-extension/static/kbase/js/api/!(*[Cc]lient*|Catalog|KBaseFeatureValues|NarrativeJobServiceWrapper|NewWorkspace)*.js': ['coverage'],
             'kbase-extension/static/kbase/js/api/RestAPIClient.js': ['coverage'],
             'nbextensions/appcell2/widgets/tabs/*.js': ['coverage'],
+            'kbase-extension/static/kbase/js/*.js': ['coverage'],
         },
         files: [
             'kbase-extension/static/narrative_paths.js',
-            {pattern: 'test/unit/spec/**/*.js', included: false},
+            {pattern: 'test/unit/spec/narrative_core/kbaseNarrativeDataList-spec.js', included: false},
+            // {pattern: 'test/unit/spec/**/*.js', included: false},
             {pattern: 'node_modules/jasmine-ajax/lib/mock-ajax.js', included: true},
             {pattern: 'kbase-extension/static/ext_components/kbase-ui-plugin-catalog/src/plugin/modules/data/categories.yml', included: false, served: true},
             {pattern: 'kbase-extension/static/**/*.css', included: false, served: true},
