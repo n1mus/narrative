@@ -14,36 +14,40 @@
 
 ## Installation
 
+Verify you have the correct packages installed:
+
+`npm install`
+
 Install grunt-cli via the following command:
 
-```
-npm install -g grunt-cli
-```
+`npm install -g grunt-cli`
 
 ## Short version
 
 1. Install the Narrative and activate its environment
     a. (optional) set credentials in test/
 2. Run `make test` at a prompt.
-3. Lament the coverage is so low.
 
 ## Long version
 
 ### About
 
-Because the Narrative Interface is built on both the front and back ends of the Jupyter Notebook, there's two sides to Narrative testing. The front end tests are in JavaScript, and make use of [Karma](http://karma-runner.github.io/1.0/index.html) as a test runner, and [Jasmine](https://jasmine.github.io/2.0/introduction.html) as a testing language. The back end tests are written in Python using the unittest framework, and run with [nose](http://nose.readthedocs.io/en/latest/).
+Because the Narrative Interface is built on both the front and back ends of the Jupyter Notebook, there's two sides to Narrative testing. The front end tests are in JavaScript, and make use of [Karma](http://karma-runner.github.io/1.0/index.html) as a test runner, and [Jasmine](https://jasmine.github.io/2.0/introduction.html) as a testing language. The back end tests are written in Python using the unittest framework, and run with [nose](http://nose.readthedocs.io/en/latest/). Integration tests are written using [Webdriver.io](https://webdriver.io/). Additional information about integration testing can be found at [test/integration/README.md](test/integration/README.md).
 
 ### How to Run Tests
 
 We aren't testing the underlying Jupyter code, but we are making use of it, so a test run requires a Narrative install as described in the [installation](../install/local_install.md) docs. If you're installing in a Virtualenv, make sure it's activated. You don't need to run the narrative yourself for tests to work, it just needs to be installed.
 
-Then, simply run (from the narrative root directory) `make test`.
+There are several commands that can be used to execute tests:
 
-This calls a few subcommands, and those can be run independently for specific uses:
+- `make test` executes backend unit tests and frontend unit tests
+- `make test-backend` executes backend unit tests
+- `make test-frontend` executes frontend unit tests
+- `make test-integration token='<yourUserToken>'` executes integration tests (only avaliable locally)
+  - The integration tests can be passed an environment vairable:
 
-- `make test-frontend-unit` will run only the unit tests on the frontend (i.e. those with the Karma runner)
-- `make test-frontend-e2e` will run only the frontend tests that make use of Selenium to simulate a browser on the real Narrative site.
-- `make test-backend` will run only the backend Python tests.
+    1. `token` user auth token (i.e. a user token for ci) - REQUIRED
+    2. `baseUrl` url for integration tests to be executed against (i.e. `https://ci.kbase.us`)
 
 ### Add Credentials for Tests
 
@@ -71,19 +75,19 @@ These tests are run (without credentials) automatically on a pull request to the
 
 ### Adding Your Own Tests
 
-***Python***
+***Backend Unit Tests***
 
 Python tests should be per module, and should all be added to the `src/biokbase/narrative/tests`. The `test.cfg` file there is in INI file format, and should be added to, as necessary.
 
 There are some service client Mocks available using the `mock` library. Check out `test_appmanager.py` for some examples of how these can be used.
 
-***JavaScript***
+***Frontend Unit Tests***
 
 JavaScript tests follow the common Test Spec idiom. Here, we create a new spec file for each JavaScript module. These all live under `test/unit/spec` in roughly the same subdirectory as found under `kbase-extension/static/kbase/js`. There's an example spec in `test/unit/specTemplate.js` - you can just copy this to a new module, and modify to fit your needs.
 
 ### Manual Testing and Debugging
 
-***Python***
+***Backend Unit Tests***
 
 For python changes, it will require shutting down the notebook, running `scripts/install_narrative.sh -u` and then starting the notebook server up again with `kbase-narrative`. You can print messages to the terminal using
 
@@ -92,7 +96,7 @@ log = logging.getLogger("tornado.application")
 log.info("Your Logs Go Here")
 ```
 
-***JavaScript***
+***Frontend Unit Tests***
 
 It can be useful to immediately see your changes in the narrative. For javascript changes, you will just have to reload the page. You can print messages to the console with `console.log`
 
@@ -117,3 +121,15 @@ karma start test/unit/karma.conf.js --browsers=Chrome --single-run=false
 ```
 
 After running the third command, a chrome browser will open. Click on the debug button. This opens a second browser window where you can inspect the page and use chrome debugger tools.
+
+***Integration Tests***
+
+Information on how to debug Webdriver.io tests can be found [here](https://webdriver.io/docs/debugging.html).
+
+## Additional Resources
+
+### Webdriver.io
+
+- [Webdriver.io](https://webdriver.io/) - overview of the project
+- [Webdriver.io Browser Object](https://webdriver.io/docs/browserobject.html) - how to use the browser object
+- [src/test/integration-tests/specs](https://github.com/kbase/kbase-ui/tree/develop/src/test/integration-tests/specs) - for wdio usage in kbase-ui. specifically, `theSpec.js` is the entrypoint (and invoked by the Makefile, which in turn calls grunt). This is somewhat more complicated as all tests are defined in yaml files, mostly provided by kbase-ui plugins. But it's wdio underneath.

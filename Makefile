@@ -36,7 +36,7 @@ build-travis-narrative:
 	jupyter notebook --version
 
 test: test-backend test-frontend
-	@echo "done running backend and frontend test scripts"
+	@echo "done running backend and frontend unit test scripts"
 
 # test-backend should use nose, or the like, to test our
 # Python extensions to the IPython notebook.
@@ -49,13 +49,10 @@ test-backend:
 	sh $(BACKEND_TEST_SCRIPT)
 	@echo "done"
 
-test-frontend:
-	TOKEN="$(token)" python test/unit/run_tests.py -u -i
-
 # test-frontend-unit should use karma and jasmine to test
 # each of the Javascript components of the Narrative.
 # This is achieved through the grunt test invocation
-test-frontend-unit:
+test-frontend:
 	@echo "running frontend unit tests"
 	python test/unit/run_tests.py -u
 	@echo "done"
