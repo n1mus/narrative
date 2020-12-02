@@ -1,15 +1,19 @@
 /*global describe, it, expect*/
-/*global beforeEach, afterEach*/
+/*global beforeEach, beforeAll, afterALl*/
 /*jslint white: true*/
 
 define([
     'common/cellComponents/paramsWidget',
     'common/runtime',
-    'common/ui'
+    'common/props',
+    'common/spec',
+    'json!../../../../../data/testAppObj.json'
 ], function(
     ParamsWidget,
     Runtime,
-    UI
+    Props,
+    Spec,
+    TestAppObject
 ) {
     'use strict';
 
@@ -24,163 +28,49 @@ define([
     });
 
     describe('The Parameter instance', function() {
-        const workspaceInfo = {
-            globalread: 'n',
-            id: 54745,
-            lockstat: 'unlocked',
-            metadata: {
-                cell_count: '1',
-                narrative_nice_name: 'Test Narrative',
-                searchtags: 'narrative',
-                is_temporary: 'false',
-                narrative: '1'
-            },
-            moddate: '2020-10-06T03:30:52+0000',
-            name: 'testUser:narrative_1601948894239',
-            object_count: 1,
-            owner: 'testUser',
-            user_permission: 'a'
-        };
+        beforeAll(() => {
+            Jupyter.narrative = {
+                getAuthToken: () => 'fakeToken'
+            };
+        });
 
-        const model = {
-            getItem: (item) => model[item],
-            setItem: (item, data) => model[item] = data,
-            'params': {
-                'import_type': 'SRA'
-            },
-            'app.spec': {
-                'full_info' : {
-                    'description': 'Details about this mock app'
-                },
-                'info': {
-                    'authors': ['Abraham', 'Martin', 'John'],
-                    'id': 0,
-                    'subtitle': 'A mock app for testing purposes',
-                    'ver': '1.0.1',
-                },
-                'parameters': [{
-                    'text_options': {
-                        'valid_ws_types': ['KBaseRNASeq.RNASeqSampleSet']},
-                    'ui_name': 'RNA sequence object <font color=red>*</font>',
-                }, {
-                    'ui_name': 'Adapters',
-                }],
-            },
-            'executionStats': {
-                'number_of_calls': 1729,
-                'total_exec_time': 9001,
-            },
-        };
-
-        //what to test? regular param, file with dropdown_options -> source = staging, output
-        //can we test advanced and hidden params?
-        const parameters = {
-            layout: ['import_type'],
-            specs: {
-                //normal parameter, not advanced, should display
-                'import_type': {
-                    id: 'import_type',
-                    multipleItems: false,
-                    original: {
-                        advanced: 0,
-                        allow_multiple: 0,
-                        default_values: ['FASTQ/FASTA'],
-                        description: 'Import file type ["FASTQ/FASTA" or "SRA"]',
-                        disabled: 0,
-                        dropdown_options: {
-                            multiselection: 0,
-                            options: [
-                                {
-                                    display: 'FASTQ/FASTA',
-                                    index: 0,
-                                    value: 'FASTQ/FASTA'
-                                },
-                                {
-                                    display: 'SRA',
-                                    index: 1,
-                                    value: 'SRA'
-                                }
-                            ]
-                        },
-                        field_type: 'dropdown',
-                        id: 'import_type',
-                        optional: 0,
-                        short_hint: 'Import file type ["FASTQ/FASTA" or "SRA"]',
-                        ui_class: 'parameter',
-                        ui_name: 'Import File Type'
-                    },
-                    data: {
-                        constraints: {
-                            options: [
-                                {
-                                    display: 'FASTQ/FASTA',
-                                    index: 0,
-                                    value: 'FASTQ/FASTA'
-                                },
-                                {
-                                    display: 'SRA',
-                                    index: 1,
-                                    value: 'SRA'
-                                }
-                            ],
-                            required: true
-                        },
-                        defaultValue: 'FASTQ/FASTA',
-                        nullValue: '',
-                        sequence: false,
-                        type: 'string'
-                    },
-                    ui: {
-                        advanced: false,
-                        class: 'parameter',
-                        control: 'dropdown',
-                        description: 'Import file type ["FASTQ/FASTA" or "SRA"]',
-                        hint: 'Import file type ["FASTQ/FASTA" or "SRA"]',
-                        label: 'Import File Type',
-                        type: 'dropdown'
-                    },
-                    _position: 0
-                }
-            }
-        };
-
-        let mockParamsWidget;
+        afterAll(() => {
+            Jupyter.narrative = null;
+        });
 
         beforeEach(async function () {
-            const appSpec = model.getItem('app.spec');
-            const initialParams = model.getItem('params');
-            let bus = Runtime.make().bus();
+            const bus = Runtime.make().bus();
+            const node = document.createElement('div');
+            document.getElementsByTagName('body')[0].appendChild(node);
 
-            let container = document.createElement('div');
-            UI.make({
-                node: container,
-                bus: bus
+            const model = Props.make({
+                data: TestAppObject,
+                onUpdate: (props) => { }
             });
 
-            let paramNode = document.createElement('div');
+            let spec = Spec.make({
+                appSpec: model.getItem('app.spec')
+            });
 
-            container.appendChild(paramNode);
+            const workspaceId = 54745;
 
-            mockParamsWidget = ParamsWidget.make({
+            const mockParamsWidget = ParamsWidget.make({
                 bus: bus,
-                workspaceInfo: workspaceInfo,
-                initialParams: initialParams
+                workspaceId: workspaceId,
+                initialParams: model.getItem('params')
             });
 
             await mockParamsWidget.start({
-                node: paramNode,
-                appSpec: appSpec,
-                parameters: parameters
+                node: node,
+                appSpec: spec,
+                parameters: spec.getSpec().parameters
             });
         });
 
-        it('has a factory which can be invoked', function() {
-            expect(mockParamsWidget).not.toBe(null);
+        it('should do something interesting', () => {
+            
         });
 
-        it('has the required methods', function() {
-            expect(mockParamsWidget.start).toBeDefined();
-            expect(mockParamsWidget.stop).toBeDefined();
-        });
+
     });
 });
