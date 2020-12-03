@@ -411,79 +411,84 @@ define([
             };
         }
 
+        function createParameterWidget(appSpec, parameterInfo, parameterId) {
+            const spec = parameterInfo.paramMap[parameterId];
+            return  makeFieldWidget(appSpec, spec, initialParams[spec.id])
+                .then((widget) => {
+                    widgets.push(widget);
+                    return widget.start({
+                        node: document.getElementById(parameterInfo.view[spec.id].id)
+                    });
+                })
+                .catch((ex) => {
+                    const errorDisplay = div({
+                        class: 'kb-field-widget__error_message--parameters'
+                    }, [
+                        ex.message
+                    ]);
+                    document.getElementById(parameterInfo.view[spec.id].id).innerHTML = errorDisplay;
+
+                    throw new Error('Error making input field widget', ex);
+                });
+        }
+
+        /* 
+            Filter out any inputs which may not be parameters (e.g. file inputs, output fields), map these to the parameter ID so we can use it to create the expected layout
+        */
+        function filterParameters(params) {
+            return params.layout.filter(function (id) {
+                const original = params.specs[id].original;
+
+                let isParameter = false;
+
+                if (original) {
+
+                    //looking for file inputs via the dynamic_dropdown data source
+                    if (original.dynamic_dropdown_options) {
+                        isParameter = original.dynamic_dropdown_options.data_source !== 'ftp_staging';
+                    }
+
+                    //looking for output fields - these should go in file paths
+                    else if (original.text_options && original.text_options.is_output_name) {
+                        isParameter = false;
+                    }
+
+                    //all other cases should be a param element
+                    else {
+                        isParameter = true;
+                    }
+                }
+
+                return isParameter;
+
+            }).map(function (id) {
+                return params.specs[id];
+            });
+        }
+
         // LIFECYCLE API
         function renderParameters() {
             // First get the app specs, which is stashed in the model,
             // with the parameters returned.
             // Separate out the params into the primary groups.
             const appSpec = model.getItem('appSpec');
+            const params = model.getItem('parameters');
+            let filteredParams = makeParamsLayout(filterParameters(params));
 
-            return Promise.try(function () {
-                const params = model.getItem('parameters');
-                let parameterParams = makeParamsLayout(
-                    params.layout.filter(function (id) {
-                        const original = params.specs[id].original;
+            //if there aren't any parameters we can just hide the whole area
+            if (!filteredParams.layout.length) {
+                ui.getElement('parameters-area').classList.add('hidden');
+            } else {
+                places.parameterFields.innerHTML = filteredParams.content;
 
-                        let isParameter = false;
-
-                        if (original) {
-
-                            //looking for file inputs via the dynamic_dropdown data source
-                            if (original.dynamic_dropdown_options) {
-                                isParameter = original.dynamic_dropdown_options.data_source !== 'ftp_staging';
-                            }
-
-                            //looking for output fields - these should go in file paths
-                            else if (original.text_options && original.text_options.is_output_name) {
-                                isParameter = false;
-                            }
-
-                            //all other cases should be a param element
-                            else {
-                                isParameter = true;
-                            }
-                        }
-
-                        return isParameter;
-
-                    }).map(function (id) {
-                        return params.specs[id];
-                    }));
-
-                return Promise.resolve()
-                    .then(function () {
-                        if (!parameterParams.layout.length) {
-                            // TODO: should be own node
-                            ui.getElement('parameters-area').classList.add('hidden');
-                        } else {
-                            places.parameterFields.innerHTML = parameterParams.content;
-
-                            return Promise.all(parameterParams.layout.map(function (parameterId) {
-                                const spec = parameterParams.paramMap[parameterId];
-                                try {
-                                    return makeFieldWidget(appSpec, spec, initialParams[spec.id])
-                                        .then(function (widget) {
-                                            widgets.push(widget);
-                                            return widget.start({
-                                                node: document.getElementById(parameterParams.view[spec.id].id)
-                                            });
-                                        });
-                                } catch (ex) {
-                                    // console.error('Error making input field widget', ex);
-                                    const errorDisplay = div({
-                                        class: 'kb-field-widget__error_message--parameters'
-                                    }, [
-                                        ex.message
-                                    ]);
-                                    document.getElementById(parameterParams.view[spec.id].id).innerHTML = errorDisplay;
-                                }
-                            }));
-                        }
-                    })
+                return Promise.all(
+                    filteredParams.layout.map((parameterId) => {
+                        createParameterWidget(appSpec, filteredParams, parameterId);
+                    }))
                     .then(function () {
                         renderAdvanced();
                     });
-            });
+            }
         }
 
         function start(arg) {
@@ -523,8 +528,8 @@ define([
         }
 
         function stop() {
-            return Promise.try(function () {
-                // really unhook things here.
+            return Promise.try(() => {
+                container.innerHTML = '';
             });
         }
 
