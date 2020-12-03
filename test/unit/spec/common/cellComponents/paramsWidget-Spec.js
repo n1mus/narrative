@@ -1,5 +1,5 @@
 /*global describe, it, expect*/
-/*global beforeEach, beforeAll, afterALl*/
+/*global beforeEach, beforeAll, afterAll*/
 /*jslint white: true*/
 
 define([
@@ -7,30 +7,30 @@ define([
     'common/runtime',
     'common/props',
     'common/spec',
-    'json!../../../../../data/testAppObj.json'
-], function(
-    ParamsWidget,
-    Runtime,
-    Props,
-    Spec,
+    'json!../../../../data/testAppObj.json',
+], (
+    ParamsWidget, 
+    Runtime, 
+    Props, 
+    Spec, 
     TestAppObject
-) {
+) => {
     'use strict';
 
-    describe('The Parameter module', function() {
-        it('loads', function() {
+    describe('The Parameter module', () => {
+        it('loads', () => {
             expect(ParamsWidget).not.toBe(null);
         });
 
-        it('has expected functions', function() {
+        it('has expected functions', () => {
             expect(ParamsWidget.make).toBeDefined();
         });
     });
 
-    describe('The Parameter instance', function() {
+    describe('The Parameter instance', () => {
         beforeAll(() => {
             Jupyter.narrative = {
-                getAuthToken: () => 'fakeToken'
+                getAuthToken: () => 'fakeToken',
             };
         });
 
@@ -38,39 +38,57 @@ define([
             Jupyter.narrative = null;
         });
 
-        beforeEach(async function () {
+        let paramsWidget, node, spec, parameters;
+
+        beforeEach(() => {
             const bus = Runtime.make().bus();
-            const node = document.createElement('div');
+            node = document.createElement('div');
             document.getElementsByTagName('body')[0].appendChild(node);
 
             const model = Props.make({
                 data: TestAppObject,
-                onUpdate: (props) => { }
+                onUpdate: (props) => {},
             });
 
-            let spec = Spec.make({
-                appSpec: model.getItem('app.spec')
+            spec = Spec.make({
+                appSpec: model.getItem('app.spec'),
             });
+
+            parameters = spec.getSpec().parameters;
 
             const workspaceId = 54745;
 
-            const mockParamsWidget = ParamsWidget.make({
+            paramsWidget = ParamsWidget.make({
                 bus: bus,
                 workspaceId: workspaceId,
-                initialParams: model.getItem('params')
+                initialParams: model.getItem('params'),
             });
+        });
 
-            await mockParamsWidget.start({
+        it('should start and render itself', () => {
+            return paramsWidget.start({
                 node: node,
                 appSpec: spec,
-                parameters: spec.getSpec().parameters
+                parameters: parameters,
+            }).then(() => {
+
+                expect(node.innerHTML).toContain('Parameters');
+
+                //we should have the option to show advanced
+                expect(node.innerHTML).toContain('show advanced');
             });
         });
 
-        it('should do something interesting', () => {
-            
+        it('should stop itself and empty the node it was in', () => {
+            return paramsWidget.start({
+                node: node,
+                appSpec: spec,
+                parameters: parameters,
+            }).then(() => {
+                return paramsWidget.stop();
+            }).then(() => {
+                expect(node.innerHTML).toEqual('');
+            });
         });
-
-
     });
 });
