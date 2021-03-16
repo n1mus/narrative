@@ -2,7 +2,9 @@ define([
     'common/cellComponents/tabs/results/reportWidget',
     'base/js/namespace',
     '/test/data/fakeResultsData',
-], (ReportWidget, Jupyter, ResultsData) => {
+    'narrativeConfig',
+    'narrativeMocks',
+], (ReportWidget, Jupyter, ResultsData, Config, Mocks) => {
     'use strict';
 
     describe('Test the app/bulk import cell report widget', () => {
@@ -20,10 +22,30 @@ define([
             this.node = document.createElement('div');
             document.body.appendChild(this.node);
             this.widget = ReportWidget.make();
+            jasmine.Ajax.install();
+
+            // doesn't seem to be a way to effectively test the toggle for
+            // the report view without actually invoking the report widget,
+            // so this mocks the calls it would make by returning empty data.
+            Mocks.mockJsonRpc1Call({
+                url: Config.url('workspace'),
+                body: /get_objects2/,
+                response: {},
+            });
+            Mocks.mockJsonRpc1Call({
+                url: Config.url('workspace'),
+                body: /get_object_info_new/,
+                response: []
+            });
+            Mocks.mockJsonRpc1Call({
+                url: Config.url('service_wizard'),
+                response: { url: 'https://ci.kbase.us/fake_service' }
+            });
         });
 
         afterEach(function () {
             this.node.remove();
+            jasmine.Ajax.uninstall();
         });
 
         it('should start and render with data', async function () {
