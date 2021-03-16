@@ -35,11 +35,11 @@ define([
             Mocks.mockJsonRpc1Call({
                 url: Config.url('workspace'),
                 body: /get_object_info_new/,
-                response: []
+                response: [],
             });
             Mocks.mockJsonRpc1Call({
                 url: Config.url('service_wizard'),
-                response: { url: 'https://ci.kbase.us/fake_service' }
+                response: { url: 'https://ci.kbase.us/fake_service' },
             });
         });
 
