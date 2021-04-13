@@ -70,7 +70,7 @@ define([
                     mode: 'terminated',
                 },
                 {
-                    mode: 'job-not-found',
+                    mode: 'does_not_exist',
                 },
             ],
         },
@@ -349,10 +349,10 @@ define([
         },
         {
             state: {
-                mode: 'job-not-found',
+                mode: 'does_not_exist',
             },
             meta: {
-                description: 'Job status returns a job not found error',
+                description: 'Job status returns a job does not exist error',
             },
             ui: {
                 buttons: {
@@ -364,14 +364,14 @@ define([
                 enter: {
                     messages: [
                         {
-                            emit: 'on-job-not-found',
+                            emit: 'on-does_not_exist',
                         },
                     ],
                 },
                 resume: {
                     messages: [
                         {
-                            emit: 'on-job-not-found',
+                            emit: 'on-does_not_exist',
                         },
                     ],
                 },
@@ -867,16 +867,7 @@ define([
             if (developerMode) {
                 ui.setContent(
                     'dev.widget-state',
-                    JSON.stringify(
-                        {
-                            fsm: fsm.getCurrentState().state,
-                            looping: looping,
-                            awaitingLog: awaitingLog,
-                            listeningForJob: listeningForJob,
-                        },
-                        null,
-                        1
-                    )
+                    JSON.stringify(fsm.getCurrentState().state, null, 1)
                 );
             }
         }
@@ -975,115 +966,87 @@ define([
             lastMode = mode;
             let newState;
 
-            switch (mode) {
-                case 'new':
-                    switch (jobStatus) {
-                        case 'created':
-                        case 'estimating':
-                        case 'queued':
-                            startJobStatusUpdates();
-                            doOnQueued();
-                            newState = {
-                                mode: 'queued',
-                                auto: true,
-                            };
-                            break;
-                        case 'running':
-                            startJobStatusUpdates();
-                            startLogAutoFetch();
-                            newState = {
-                                mode: jobStatus,
-                                auto: true,
-                            };
-                            break;
-                        case 'completed':
-                        case 'error':
-                        case 'terminated':
-                            requestJobLog(0);
-                            stopJobStatusUpdates();
-                            newState = {
-                                mode: jobStatus,
-                            };
-                            break;
-                        default:
-                            stopJobStatusUpdates();
-                            console.error('Unknown job status', jobStatus, message);
-                            throw new Error(`Unknown job status ${jobStatus}`);
-                    }
-                    break;
-                case 'queued':
-                    switch (jobStatus) {
-                        case 'created':
-                        case 'estimating':
-                        case 'queued':
-                            // no change
-                            break;
-                        case 'running':
-                            doExitQueued();
-                            newState = {
-                                mode: jobStatus,
-                                auto: true,
-                            };
-                            break;
-                        case 'completed':
-                        case 'error':
-                        case 'terminated':
-                            newState = {
-                                mode: jobStatus,
-                            };
-                            requestJobLog(0);
-                            stopJobStatusUpdates();
-                            break;
-                        default:
-                            stopJobStatusUpdates();
-                            console.error('Unknown job status', jobStatus, message);
-                            throw new Error(`Unknown job status ${jobStatus}`);
-                    }
-                    break;
-                case 'running':
-                    switch (jobStatus) {
-                        case 'created':
-                        case 'estimating':
-                        case 'queued':
-                            // this should not occur!
-                            break;
-                        case 'running':
-                            startLogAutoFetch();
-                            break;
-                        case 'completed':
-                        case 'error':
-                        case 'terminated':
-                            // the FSM turns off log fetch and status updates
-                            newState = {
-                                mode: jobStatus,
-                            };
-                            break;
-                        default:
-                            console.error('Unknown job status', jobStatus, message);
-                            throw new Error(`Unknown job status ${jobStatus}`);
-                    }
-                    break;
-                case 'terminated':
-                case 'completed':
-                case 'error':
-                    stopJobStatusUpdates();
-                    // jobStatus should be 'completed' for mode 'completed',
-                    // 'error' for mode 'error'
-                    // 'terminated' for mode 'terminated'
-                    // if not, some sort of error has occurred
-                    return;
-                default:
-                    console.error('Unknown job status', jobStatus, message);
-                    throw new Error(`Unknown job status ${jobStatus}`);
+            // if the current job status is a terminal status, it doesn't matter what the
+            // preceding state was as the action will be the same
+            if (Jobs.isTerminalStatus(jobStatus)) {
+                newState = { mode: jobStatus };
+            } else {
+                switch (mode) {
+                    case 'new':
+                        switch (jobStatus) {
+                            case 'created':
+                            case 'estimating':
+                            case 'queued':
+                                newState = {
+                                    mode: 'queued',
+                                    auto: true,
+                                };
+                                startJobStatusUpdates();
+                                doOnQueued();
+                                break;
+                            case 'running':
+                                newState = {
+                                    mode: jobStatus,
+                                    auto: true,
+                                };
+                                startJobStatusUpdates();
+                                startLogAutoFetch();
+                                break;
+                            default:
+                                stopJobStatusUpdates();
+                                console.error('Unknown job status', jobStatus, message);
+                                throw new Error(`Unknown job status ${jobStatus}`);
+                        }
+                        break;
+                    case 'queued':
+                        switch (jobStatus) {
+                            case 'created':
+                            case 'estimating':
+                            case 'queued':
+                                // no change
+                                break;
+                            case 'running':
+                                newState = {
+                                    mode: jobStatus,
+                                    auto: true,
+                                };
+                                doExitQueued();
+                                break;
+                            default:
+                                stopJobStatusUpdates();
+                                console.error('Unknown job status', jobStatus, message);
+                                throw new Error(`Unknown job status ${jobStatus}`);
+                        }
+                        break;
+                    case 'running':
+                        switch (jobStatus) {
+                            case 'created':
+                            case 'estimating':
+                            case 'queued':
+                                // this should not occur!
+                                break;
+                            case 'running':
+                                startLogAutoFetch();
+                                break;
+                            default:
+                                console.error('Unknown job status', jobStatus, message);
+                                throw new Error(`Unknown job status ${jobStatus}`);
+                        }
+                        break;
+                    default:
+                        console.error('Unknown job status', jobStatus, message);
+                        throw new Error(`Unknown job status ${jobStatus}`);
+                }
             }
+
             if (newState) {
-                renderJobState(lastJobState);
                 fsm.newState(newState);
+                renderJobState(lastJobState);
             }
         }
 
         function handleJobDoesNotExistUpdate() {
-            fsm.newState({ mode: 'job-not-found' });
+            fsm.newState({ mode: 'does_not_exist' });
         }
 
         function handleJobLogs(message) {
@@ -1251,6 +1214,12 @@ define([
             stopJobStatusUpdates();
         }
 
+        function doJobFinished() {
+            stopLogAutoFetch();
+            requestJobLog(0);
+            stopJobStatusUpdates();
+        }
+
         function initializeFSM() {
             fsm = Fsm.make({
                 states: appStates,
@@ -1270,7 +1239,14 @@ define([
                 stopLogAutoFetch();
                 stopJobStatusUpdates();
             });
-            fsm.bus.on('on-job-not-found', () => {
+
+            ['completed', 'terminated', 'error'].forEach((state) => {
+                fsm.bus.on(`on-${state}`, () => {
+                    doJobFinished();
+                });
+            });
+
+            fsm.bus.on('on-does_not_exist', () => {
                 doJobNotFound();
             });
         }
@@ -1357,6 +1333,22 @@ define([
             if (container) {
                 container.innerHTML = '';
             }
+        }
+
+        function widgetState() {
+            return {
+                fsm: fsm,
+                widget: {
+                    awaitingLog: awaitingLog,
+                    listeningForJob: listeningForJob,
+                    looping: looping,
+                    stopped: stopped,
+                },
+            };
+        }
+
+        if (developerMode) {
+            return { start, stop, detach, widgetState };
         }
 
         // API

@@ -24,90 +24,6 @@ define([
         dataTablePageLength = 50,
         cssBaseClass = 'kb-job-status';
 
-    function createActionsDropdown(events) {
-        // each button has an action, either 'cancel' or 'retry',
-        // and a target, which refers to the status of the jobs
-        // that the action will be performed upon.
-
-        const actionArr = [
-            {
-                label: 'Cancel queued jobs',
-                action: 'cancel',
-                target: 'queued',
-            },
-            {
-                label: 'Cancel running jobs',
-                action: 'cancel',
-                target: 'running',
-            },
-            {
-                label: 'Retry cancelled jobs',
-                action: 'retry',
-                target: 'terminated',
-            },
-            {
-                label: 'Retry failed jobs',
-                action: 'retry',
-                target: 'error',
-            },
-        ];
-        const uniqueId = html.genId();
-        return div(
-            {
-                class: `${cssBaseClass}__dropdown dropdown`,
-            },
-            [
-                button(
-                    {
-                        id: uniqueId,
-                        type: 'button',
-                        dataToggle: 'dropdown',
-                        ariaHaspopup: true,
-                        ariaExpanded: false,
-                        ariaLabel: 'Job options',
-                        class: `btn btn-default ${cssBaseClass}__dropdown_header`,
-                    },
-                    [
-                        'Cancel / retry all',
-                        span({
-                            class: `fa fa-caret-down kb-pointer ${cssBaseClass}__icon`,
-                        }),
-                    ]
-                ),
-                ul(
-                    {
-                        class: `${cssBaseClass}__dropdown-menu dropdown-menu`,
-                        ariaLabelledby: uniqueId,
-                    },
-                    actionArr.map((actionObj) => {
-                        return li(
-                            {
-                                class: `${cssBaseClass}__dropdown-menu-item`,
-                            },
-                            button(
-                                {
-                                    class: `${cssBaseClass}__dropdown-menu-item-link--${actionObj.action}`,
-                                    type: 'button',
-                                    title: actionObj.label,
-                                    // TODO: add action listener and implementation here
-                                    id: events.addEvent({
-                                        type: 'click',
-                                        handler: () => {
-                                            console.log('CLICK!');
-                                        },
-                                    }),
-                                    dataAction: actionObj.action,
-                                    dataTarget: actionObj.target,
-                                },
-                                actionObj.label
-                            )
-                        );
-                    })
-                ),
-            ]
-        );
-    }
-
     function createTable() {
         return table(
             {
@@ -193,12 +109,122 @@ define([
         });
     }
 
-    function factory() {
+    function factory(config) {
         const widgetsById = {},
             bus = Runtime.make().bus(),
-            listeners = {};
+            listeners = {},
+            { jobManager, toggleTab } = config;
 
         let $container, tableBody;
+
+        function doBatchJobAction(e) {
+            const el = e.target;
+            const action = el.getAttribute('data-action'),
+                target = el.getAttribute('data-target');
+
+            if (['cancel', 'retry'].includes(action)) {
+                jobManager[`${action}JobsByStatus`](target);
+            }
+        }
+
+        function doSingleJobAction(e) {
+            const el = e.target;
+            e.stopPropagation();
+            const action = el.getAttribute('data-action'),
+                target = el.getAttribute('data-target');
+            // valid actions: cancel, retry, go-to-results
+            // data-target: jobId
+            if (['cancel', 'retry'].includes(action)) {
+                jobManager[`${action}Job`](target);
+            }
+            else if (action === 'go-to-results') {
+                // switch to results tab
+                toggleTab('results')
+            }
+        }
+
+        function createActionsDropdown(events) {
+            // each button has an action, either 'cancel' or 'retry',
+            // and a target, which refers to the status of the jobs
+            // that the action will be performed upon.
+
+            const actionArr = [
+                {
+                    label: 'Cancel queued jobs',
+                    action: 'cancel',
+                    target: 'queued',
+                },
+                {
+                    label: 'Cancel running jobs',
+                    action: 'cancel',
+                    target: 'running',
+                },
+                {
+                    label: 'Retry cancelled jobs',
+                    action: 'retry',
+                    target: 'terminated',
+                },
+                {
+                    label: 'Retry failed jobs',
+                    action: 'retry',
+                    target: 'error',
+                },
+            ];
+            const uniqueId = html.genId();
+            return div(
+                {
+                    class: `${cssBaseClass}__dropdown dropdown`,
+                },
+                [
+                    button(
+                        {
+                            id: uniqueId,
+                            type: 'button',
+                            dataToggle: 'dropdown',
+                            ariaHaspopup: true,
+                            ariaExpanded: false,
+                            ariaLabel: 'Job options',
+                            class: `btn btn-default ${cssBaseClass}__dropdown_header`,
+                        },
+                        [
+                            'Cancel / retry all',
+                            span({
+                                class: `fa fa-caret-down kb-pointer ${cssBaseClass}__icon`,
+                            }),
+                        ]
+                    ),
+                    ul(
+                        {
+                            class: `${cssBaseClass}__dropdown-menu dropdown-menu`,
+                            ariaLabelledby: uniqueId,
+                        },
+                        actionArr.map((actionObj) => {
+                            return li(
+                                {
+                                    class: `${cssBaseClass}__dropdown-menu-item`,
+                                },
+                                button(
+                                    {
+                                        class: `${cssBaseClass}__dropdown-menu-item-link--${actionObj.action}`,
+                                        type: 'button',
+                                        title: actionObj.label,
+                                        dataElement: `${actionObj.action}-${actionObj.target}`,
+                                        // TODO: add action listener and implementation here
+                                        id: events.addEvent({
+                                            type: 'click',
+                                            handler: doBatchJobAction,
+                                        }),
+                                        dataAction: actionObj.action,
+                                        dataTarget: actionObj.target,
+                                    },
+                                    actionObj.label
+                                )
+                            );
+                        })
+                    ),
+                ]
+            );
+        }
 
         function startParamsListener(jobId) {
             listeners[`params__${jobId}`] = bus.listen({
@@ -265,10 +291,11 @@ define([
             widgetsById[jobState.job_id] = JobStateListRow.make();
             // this returns a promise
             return widgetsById[jobState.job_id].start({
-                node: createTableRow(tableBody, jobIndex),
+                node: createTableRow(tableBody, jobState.job_id),
                 jobState: jobState,
                 // this will be replaced once the job-info call runs
                 name: jobState.description || 'Child Job ' + (jobIndex + 1),
+                clickAction: doSingleJobAction,
             });
         }
 
@@ -278,6 +305,8 @@ define([
          *      node:     DOM node to attach to
          *      jobState: job state object
          *      includeParentJob: boolean; whether or not to add a parent job row
+         *
+         * @returns {Promise} started JobStateList widget
          */
         function start(args) {
             const requiredArgs = ['node', 'jobState'];
@@ -297,6 +326,8 @@ define([
                     createJobStateListRowWidget(childJob, index);
                 })
             ).then(() => {
+                // activate tooltips
+                // $container.find('[data-toggle="tooltip"]').tooltip();
                 renderTable($container, jobState.child_jobs.length);
 
                 events.attachEvents();
@@ -330,8 +361,8 @@ define([
     }
 
     return {
-        make: function () {
-            return factory();
+        make: function (config) {
+            return factory(config);
         },
         cssBaseClass: cssBaseClass,
     };

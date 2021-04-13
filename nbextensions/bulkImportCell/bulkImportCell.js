@@ -401,6 +401,75 @@ define([
             controlPanel.setExecMessage(Jobs.createCombinedJobState(jobState));
         }
 
+        /* JOB MANAGEMENT */
+
+        function runJob() {
+            // fsm.newState({ mode: 'execute-requested' });
+            // renderUI();
+
+            cell.execute();
+        }
+
+        /**
+         * Cancel a single job from the batch
+         *
+         * @param {string} jobId
+         */
+        function cancelJob(jobId) {
+            alert(`Cancel job ${jobId}`)
+            runtime.bus().emit('request-job-cancellation', {
+                jobId: jobId,
+            });
+        }
+
+        /**
+         * Cancel all jobs with the specified status
+         *
+         * @param {string} status
+         */
+        function cancelJobsByStatus(status) {
+            const validStates = ['created', 'estimating', 'queued', 'running'];
+            if (!validStates.includes(status)) {
+                throw new Error(`${status} is not a valid job state`);
+            }
+            // TODO: implement
+            alert(`Cancel jobs with status ${status}`)
+        }
+
+        /**
+         * Retry a single job from the batch
+         *
+         * @param {string} jobId
+         */
+        function retryJob(jobId) {
+            alert(`Retry job ${jobId}`)
+            // TODO: implement
+        }
+
+        /**
+         * Retry all jobs that ended with the specified status
+         *
+         * @param {string} status
+         */
+        function retryJobsByStatus(status) {
+            const validStates = ['error', 'terminated'];
+            if (!validStates.includes(status)) {
+                throw new Error(`${status} is not a valid job state`);
+            }
+            // TODO: implement
+            alert(`Retry jobs with status ${status}`)
+        }
+
+        const jobManager = {
+            runJob,
+            cancelJob,
+            cancelJobsByStatus,
+            retryJob,
+            retryJobsByStatus
+        };
+
+        /* END JOB MANAGEMENT */
+
         /**
          * Initializes the DOM node (kbaseNode) for rendering.
          */
@@ -527,11 +596,13 @@ define([
             tabWidget = tabSet.tabs[tab].widget.make({
                 bus: cellBus,
                 cell,
+                jobManager,
                 model: tabModel,
                 spec: specs[typesToFiles[state.fileType.selected].appId],
                 fileType,
                 jobId: undefined,
-                workspaceClient: workspaceClient,
+                workspaceClient,
+                toggleTab,
             });
 
             ui.getElement('body.tab-pane').setAttribute('data-active-tab', tab);

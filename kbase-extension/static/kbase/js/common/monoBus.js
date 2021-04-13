@@ -100,6 +100,10 @@ define(['uuid', 'bluebird', './lang', './unodep'], (Uuid, Promise, lang, utils) 
             delete channels[name];
         }
 
+        function getChannels() {
+            return channels;
+        }
+
         // LISTENING
 
         function letListenerHandle(item, handle) {
@@ -845,6 +849,7 @@ define(['uuid', 'bluebird', './lang', './unodep'], (Uuid, Promise, lang, utils) 
             when: when,
             makeChannelBus: makeChannelBus,
             makeChannel: makeChannel,
+            getChannels: getChannels,
             removeChannel: removeChannel,
             removeListener: removeListener,
             removeListeners: removeListeners,

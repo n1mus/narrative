@@ -2,9 +2,11 @@ define([
     '../../../../../../../narrative/nbextensions/appCell2/widgets/appCellWidget',
     'common/runtime',
     'base/js/namespace',
-], (AppCell, Runtime, Jupyter) => {
+    '/test/data/jobsData',
+    'testUtil',
+], (AppCell, Runtime, Jupyter, JobsData, TestUtil) => {
     'use strict';
-    let mockAppCell;
+    let appCellInstance;
 
     const workspaceInfo = {
         globalread: 'n',
@@ -78,10 +80,9 @@ define([
     // Can only test the public functions...
     describe('The appCell widget', () => {
         beforeEach(() => {
-            const bus = Runtime.make().bus();
-            mockAppCell = AppCell.make({
+            appCellInstance = AppCell.make({
                 workspaceInfo: workspaceInfo,
-                bus: bus,
+                bus: Runtime.make().bus(),
                 cell: cell,
             });
 
@@ -94,7 +95,7 @@ define([
         });
 
         afterEach(() => {
-            mockAppCell = null;
+            appCellInstance = null;
             window.kbaseRuntime = null;
             Jupyter.notebook = null;
             Jupyter.narrative = null;
@@ -109,44 +110,131 @@ define([
         });
 
         it('Can be instantiated', () => {
-            expect(mockAppCell).not.toBe(null);
+            expect(appCellInstance).not.toBe(null);
         });
 
         it('Has expected functions when instantiated', () => {
             ['init', 'attach', 'start', 'stop', 'detach'].forEach((fn) => {
-                expect(mockAppCell[fn]).toBeDefined();
+                expect(appCellInstance[fn]).toBeDefined();
             });
         });
 
-        xit('has a method "init" which returns a promise then null', () => {
-            return mockAppCell.init().then(() => {
-                // something to see if it worked
+        it('has a method "init" which sets up the code area and FSM', () => {
+            expect(cell.metadata.kbase.appCell['user-settings']).not.toBeDefined();
+            expect(appCellInstance.__fsm()).toBeUndefined();
+            return appCellInstance.init().then(() => {
+                expect(cell.metadata.kbase.appCell['user-settings']).toEqual({
+                    showCodeInputArea: false,
+                });
+                expect(appCellInstance.__fsm()).toEqual(jasmine.any(Object));
+                expect(appCellInstance.__fsm().getCurrentState().state).toEqual({ mode: 'new' });
             });
         });
 
-        xit('has a method stop which returns a Promise', () => {
-            return mockAppCell
-                .init()
-                .then(() => {
-                    return mockAppCell.stop();
-                })
-                .then(() => {
-                    // something to see if it worked.
-                });
+        describe('the initialised cell', () => {
+            beforeEach(async () => {
+                await appCellInstance.init();
+            });
+
+            xit('has a method stop which returns a Promise', () => {
+                return appCellInstance
+                    .init()
+                    .then(() => {
+                        return appCellInstance.stop();
+                    })
+                    .then(() => {
+                        // something to see if it worked.
+                    });
+            });
+
+            xit('has a method detach which returns a Promise', () => {
+                return appCellInstance
+                    .init()
+                    .then(() => {
+                        return appCellInstance.stop();
+                    })
+                    .then(() => {
+                        return appCellInstance.detach();
+                    })
+                    .then(() => {
+                        //see if it worked.
+                    });
+            });
+        });
+    });
+
+    xdescribe('FSM transitions', () => {
+        const appCellInfo = cell,
+            jobId = 'fake_job';
+        let container;
+        // skip the app spec validation stuff
+        appCellInfo.metadata.kbase.type = 'devapp';
+        // app in the 'Sending...' state
+        appCellInfo.metadata.kbase.appCell.fsm = { currentState: { mode: 'execute-requested' } };
+        // invalid job to trigger listening for job messages
+        appCellInfo.metadata.kbase.appCell.exec = { jobState: { job_id: jobId } };
+
+        beforeAll(function () {
+            this.runtime = Runtime.make();
+            this.bus = Runtime.make().bus();
+        });
+        afterAll(() => {
+            window.kbaseRuntime = null;
         });
 
-        xit('has a method detach which returns a Promise', () => {
-            return mockAppCell
-                .init()
-                .then(() => {
-                    return mockAppCell.stop();
-                })
-                .then(() => {
-                    return mockAppCell.detach();
-                })
-                .then(() => {
-                    //see if it worked.
+        beforeEach(async function () {
+            container = document.createElement('div');
+            appCellInstance = AppCell.make({
+                workspaceInfo: workspaceInfo,
+                bus: this.bus,
+                cell: cell,
+            });
+
+            Jupyter.notebook = {
+                writable: true,
+            };
+            Jupyter.narrative = {
+                readonly: false,
+            };
+            await appCellInstance.init();
+        });
+
+        afterEach(function () {
+            appCellInstance.stop();
+
+            appCellInstance = null;
+            Jupyter.notebook = null;
+            Jupyter.narrative = null;
+        });
+
+        JobsData.validJobs.forEach((jobState) => {
+            it('transitions correctly to state ', async function () {
+                await appCellInstance.attach(container);
+                await appCellInstance.run();
+                const message = [
+                    Object.assign(
+                        {},
+                        { jobId: jobId },
+                        { jobState: Object.assign({}, jobState, { job_id: jobId }) }
+                    ),
+                    {
+                        channel: {
+                            jobId: jobId,
+                        },
+                        key: {
+                            type: 'job-status',
+                        },
+                    },
+                ];
+                this.bus.send(...message);
+                return TestUtil.waitForElementChange(
+                    container.querySelector('[data-element="fsm-display"]')
+                ).then(() => {
+                    expect(appCellInstance.__fsm().getCurrentState().state).toEqual(
+                        jobState.meta.appCellFsm
+                    );
                 });
+            });
         });
     });
 });
