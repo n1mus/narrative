@@ -70,7 +70,7 @@ define([
                     mode: 'terminated',
                 },
                 {
-                    mode: 'job-not-found',
+                    mode: 'does_not_exist',
                 },
             ],
         },
@@ -349,10 +349,10 @@ define([
         },
         {
             state: {
-                mode: 'job-not-found',
+                mode: 'does_not_exist',
             },
             meta: {
-                description: 'Job status returns a job not found error',
+                description: 'Job status returns a job does not exist error',
             },
             ui: {
                 buttons: {
@@ -364,14 +364,14 @@ define([
                 enter: {
                     messages: [
                         {
-                            emit: 'on-job-not-found',
+                            emit: 'on-does_not_exist',
                         },
                     ],
                 },
                 resume: {
                     messages: [
                         {
-                            emit: 'on-job-not-found',
+                            emit: 'on-does_not_exist',
                         },
                     ],
                 },
@@ -425,10 +425,10 @@ define([
             ui,
             fsm,
             runClock,
-            looping = false,
-            stopped = false,
-            listeningForJob = false, // if true, this means we're listening for job updates
-            awaitingLog = false, // if true, there's a log request fired that we're awaiting
+            jobStatusListening = false, // if true, the widget is listening for job status updates
+            jobLogLooping = false, // if true, the widget is sending regular requests for job logs
+            jobLogStopped = false, // if true, the widget is not updating the job logs
+            jobLogWaiting = false, // if true, the widget is awaiting the response to a request for job logs
             requestLoop = null, // the timeout object
             scrollToEndOnNext = false;
 
@@ -442,7 +442,7 @@ define([
 
         // VIEW ACTIONS
         function scheduleLogRequest() {
-            if (!looping) {
+            if (!jobLogLooping) {
                 return;
             }
             requestLoop = window.setTimeout(() => {
@@ -451,7 +451,7 @@ define([
         }
 
         function stopLogAutoFetch() {
-            looping = false;
+            jobLogLooping = false;
             if (ui) {
                 ui.hideElement('spinner');
             }
@@ -461,12 +461,12 @@ define([
          * Starts the autofetch loop. After the first request, this starts a timeout that calls it again.
          */
         function startLogAutoFetch() {
-            if (looping || stopped) {
+            if (jobLogLooping || jobLogStopped) {
                 return;
             }
             const { state } = fsm.getCurrentState();
             if (state.mode === 'running' && state.auto) {
-                looping = true;
+                jobLogLooping = true;
                 fsm.newState({ mode: 'running', auto: true });
                 // stop the current timer if we have one.
                 if (requestLoop) {
@@ -483,7 +483,7 @@ define([
             fsm.updateState({
                 auto: true,
             });
-            stopped = false;
+            jobLogStopped = false;
             startLogAutoFetch();
         }
 
@@ -494,7 +494,7 @@ define([
             fsm.updateState({
                 auto: false,
             });
-            stopped = true;
+            jobLogStopped = true;
             stopLogAutoFetch();
             if (requestLoop) {
                 clearTimeout(requestLoop);
@@ -510,7 +510,7 @@ define([
          */
         function requestJobLog(firstLine) {
             ui.showElement('spinner');
-            awaitingLog = true;
+            jobLogWaiting = true;
             bus.emit('request-job-log', {
                 jobId: jobId,
                 options: {
@@ -525,7 +525,7 @@ define([
          */
         function requestLatestJobLog() {
             scrollToEndOnNext = true;
-            awaitingLog = true;
+            jobLogWaiting = true;
             ui.showElement('spinner');
             bus.emit('request-latest-job-log', {
                 jobId: jobId,
@@ -867,16 +867,7 @@ define([
             if (developerMode) {
                 ui.setContent(
                     'dev.widget-state',
-                    JSON.stringify(
-                        {
-                            fsm: fsm.getCurrentState().state,
-                            looping: looping,
-                            awaitingLog: awaitingLog,
-                            listeningForJob: listeningForJob,
-                        },
-                        null,
-                        1
-                    )
+                    JSON.stringify(fsm.getCurrentState().state, null, 1)
                 );
             }
         }
@@ -975,119 +966,91 @@ define([
             lastMode = mode;
             let newState;
 
-            switch (mode) {
-                case 'new':
-                    switch (jobStatus) {
-                        case 'created':
-                        case 'estimating':
-                        case 'queued':
-                            startJobStatusUpdates();
-                            doOnQueued();
-                            newState = {
-                                mode: 'queued',
-                                auto: true,
-                            };
-                            break;
-                        case 'running':
-                            startJobStatusUpdates();
-                            startLogAutoFetch();
-                            newState = {
-                                mode: jobStatus,
-                                auto: true,
-                            };
-                            break;
-                        case 'completed':
-                        case 'error':
-                        case 'terminated':
-                            requestJobLog(0);
-                            stopJobStatusUpdates();
-                            newState = {
-                                mode: jobStatus,
-                            };
-                            break;
-                        default:
-                            stopJobStatusUpdates();
-                            console.error('Unknown job status', jobStatus, message);
-                            throw new Error(`Unknown job status ${jobStatus}`);
-                    }
-                    break;
-                case 'queued':
-                    switch (jobStatus) {
-                        case 'created':
-                        case 'estimating':
-                        case 'queued':
-                            // no change
-                            break;
-                        case 'running':
-                            doExitQueued();
-                            newState = {
-                                mode: jobStatus,
-                                auto: true,
-                            };
-                            break;
-                        case 'completed':
-                        case 'error':
-                        case 'terminated':
-                            newState = {
-                                mode: jobStatus,
-                            };
-                            requestJobLog(0);
-                            stopJobStatusUpdates();
-                            break;
-                        default:
-                            stopJobStatusUpdates();
-                            console.error('Unknown job status', jobStatus, message);
-                            throw new Error(`Unknown job status ${jobStatus}`);
-                    }
-                    break;
-                case 'running':
-                    switch (jobStatus) {
-                        case 'created':
-                        case 'estimating':
-                        case 'queued':
-                            // this should not occur!
-                            break;
-                        case 'running':
-                            startLogAutoFetch();
-                            break;
-                        case 'completed':
-                        case 'error':
-                        case 'terminated':
-                            // the FSM turns off log fetch and status updates
-                            newState = {
-                                mode: jobStatus,
-                            };
-                            break;
-                        default:
-                            console.error('Unknown job status', jobStatus, message);
-                            throw new Error(`Unknown job status ${jobStatus}`);
-                    }
-                    break;
-                case 'terminated':
-                case 'completed':
-                case 'error':
-                    stopJobStatusUpdates();
-                    // jobStatus should be 'completed' for mode 'completed',
-                    // 'error' for mode 'error'
-                    // 'terminated' for mode 'terminated'
-                    // if not, some sort of error has occurred
-                    return;
-                default:
-                    console.error('Unknown job status', jobStatus, message);
-                    throw new Error(`Unknown job status ${jobStatus}`);
+            // if the current job status is a terminal status, it doesn't matter what the
+            // preceding state was as the action will be the same
+            if (Jobs.isTerminalStatus(jobStatus)) {
+                newState = { mode: jobStatus };
+            } else {
+                switch (mode) {
+                    case 'new':
+                        switch (jobStatus) {
+                            case 'created':
+                            case 'estimating':
+                            case 'queued':
+                                newState = {
+                                    mode: 'queued',
+                                    auto: true,
+                                };
+                                startJobStatusUpdates();
+                                doOnQueued();
+                                break;
+                            case 'running':
+                                newState = {
+                                    mode: jobStatus,
+                                    auto: true,
+                                };
+                                startJobStatusUpdates();
+                                startLogAutoFetch();
+                                break;
+                            default:
+                                stopJobStatusUpdates();
+                                console.error('Unknown job status', jobStatus, message);
+                                throw new Error(`Unknown job status ${jobStatus}`);
+                        }
+                        break;
+                    case 'queued':
+                        switch (jobStatus) {
+                            case 'created':
+                            case 'estimating':
+                            case 'queued':
+                                // no change
+                                break;
+                            case 'running':
+                                newState = {
+                                    mode: jobStatus,
+                                    auto: true,
+                                };
+                                doExitQueued();
+                                break;
+                            default:
+                                stopJobStatusUpdates();
+                                console.error('Unknown job status', jobStatus, message);
+                                throw new Error(`Unknown job status ${jobStatus}`);
+                        }
+                        break;
+                    case 'running':
+                        switch (jobStatus) {
+                            case 'created':
+                            case 'estimating':
+                            case 'queued':
+                                // this should not occur!
+                                break;
+                            case 'running':
+                                startLogAutoFetch();
+                                break;
+                            default:
+                                console.error('Unknown job status', jobStatus, message);
+                                throw new Error(`Unknown job status ${jobStatus}`);
+                        }
+                        break;
+                    default:
+                        console.error('Unknown job status', jobStatus, message);
+                        throw new Error(`Unknown job status ${jobStatus}`);
+                }
             }
+
             if (newState) {
-                renderJobState(lastJobState);
                 fsm.newState(newState);
+                renderJobState(lastJobState);
             }
         }
 
         function handleJobDoesNotExistUpdate() {
-            fsm.newState({ mode: 'job-not-found' });
+            fsm.newState({ mode: 'does_not_exist' });
         }
 
         function handleJobLogs(message) {
-            if (!awaitingLog) {
+            if (!jobLogWaiting) {
                 return;
             }
 
@@ -1110,7 +1073,7 @@ define([
              *   }
              * }
              */
-            awaitingLog = false;
+            jobLogWaiting = false;
 
             if (message.logs.lines.length !== 0) {
                 const viewLines = message.logs.lines.map((line) => {
@@ -1126,11 +1089,11 @@ define([
                 model.setItem('totalLines', message.logs.max_lines);
                 renderLog();
             }
-            if (looping) {
+            if (jobLogLooping) {
                 scheduleLogRequest();
             }
             // no longer listening for job => remove any existing event listeners
-            if (!listeningForJob) {
+            if (!jobStatusListening) {
                 stopEventListeners();
             }
         }
@@ -1162,7 +1125,7 @@ define([
                 handle: function (message) {
                     stopLogAutoFetch();
                     renderLog();
-                    awaitingLog = false;
+                    jobLogWaiting = false;
                     console.error(
                         `Error retrieving log for ${jobId}: ${JSON.stringify(message, null, 1)}`
                     );
@@ -1245,9 +1208,15 @@ define([
         function doJobNotFound() {
             // clear the log container
             ui.setContent('log-container', '');
-            awaitingLog = false;
+            jobLogWaiting = false;
             // slightly hacky way to get the appropriate job status lines
             renderJobState({ job_state: 'does_not_exist' });
+            stopJobStatusUpdates();
+        }
+
+        function doJobFinished() {
+            stopLogAutoFetch();
+            requestJobLog(0);
             stopJobStatusUpdates();
         }
 
@@ -1270,7 +1239,14 @@ define([
                 stopLogAutoFetch();
                 stopJobStatusUpdates();
             });
-            fsm.bus.on('on-job-not-found', () => {
+
+            ['completed', 'terminated', 'error'].forEach((state) => {
+                fsm.bus.on(`on-${state}`, () => {
+                    doJobFinished();
+                });
+            });
+
+            fsm.bus.on('on-does_not_exist', () => {
                 doJobNotFound();
             });
         }
@@ -1279,13 +1255,13 @@ define([
             bus.emit('request-job-update', {
                 jobId: jobId,
             });
-            listeningForJob = true;
+            jobStatusListening = true;
         }
 
         function stopJobStatusUpdates() {
-            listeningForJob = false;
+            jobStatusListening = false;
 
-            if (awaitingLog) {
+            if (jobLogWaiting) {
                 stopEventListeners(['job-status']);
             } else {
                 stopEventListeners();
@@ -1330,7 +1306,7 @@ define([
                 bus.emit('request-job-status', {
                     jobId: jobId,
                 });
-                listeningForJob = true;
+                jobStatusListening = true;
             }).catch((err) => {
                 throw err;
             });
@@ -1349,7 +1325,7 @@ define([
             if (runClock) {
                 runClock.stop();
             }
-            stopped = false;
+            jobLogStopped = false;
         }
 
         function detach() {
@@ -1357,6 +1333,22 @@ define([
             if (container) {
                 container.innerHTML = '';
             }
+        }
+
+        function widgetState() {
+            return {
+                fsm: fsm,
+                widget: {
+                    jobStatusListening: jobStatusListening,
+                    jobLogLooping: jobLogLooping,
+                    // jobLogStopped: jobLogStopped,
+                    jobLogWaiting: jobLogWaiting,
+                },
+            };
+        }
+
+        if (developerMode) {
+            return { start, stop, detach, widgetState };
         }
 
         // API

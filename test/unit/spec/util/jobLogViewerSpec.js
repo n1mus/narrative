@@ -19,11 +19,6 @@ define([
     const endStates = ['completed', 'error', 'terminated'];
     const queueStates = ['created', 'estimating', 'queued'];
 
-    function getWidgetState(node) {
-        const stateNode = node.querySelector('[data-element="widget-state"]');
-        return JSON.parse(stateNode.textContent);
-    }
-
     function createLogViewer(context, showHistory = false, logPollInterval = null) {
         context.node = document.createElement('div');
         context.runtimeBus = Runtime.make().bus();
@@ -134,6 +129,22 @@ define([
         }
     }
 
+    /**
+     * Test the state of the FSM and the various internal variables
+     * @param {object} context `this` context
+     * @param {object} expectedState - object with keys
+     *  fsm:    value returned by fsm.getCurrentState().state
+     *  widget: value of internal variables `jobStatusListening`, `jobLogWaiting`,
+     *          `jobLogLooping`, and `jobLogStopped`
+     */
+
+    function testWidgetState(context, expectedState) {
+        const widgetState = context.jobLogViewerInstance.widgetState();
+        expect(widgetState.widget).toEqual(expectedState.widget);
+        const fsmState = widgetState.fsm.getCurrentState().state;
+        expect(fsmState.mode).toEqual(expectedState.fsm.mode);
+    }
+
     function itHasJobStatus() {
         it('has job status', function () {
             testJobStatus(this);
@@ -214,17 +225,18 @@ define([
             });
         });
 
-        it('Should fail to start without a node', async () => {
-            const jobLogViewerInstance = JobLogViewer.make();
+        it('Should fail to start without a node', async function () {
             await expectAsync(
-                jobLogViewerInstance.start({ jobId: 'fakeJob' })
+                this.jobLogViewerInstance.start({
+                    jobId: 'fakejob',
+                })
             ).toBeRejectedWithError(/Requires a node to start/);
         });
 
         it('Should fail to start without a jobId', async function () {
-            const jobLogViewerInstance = JobLogViewer.make();
+            // const jobLogViewerInstance = JobLogViewer.make();
             await expectAsync(
-                jobLogViewerInstance.start({ node: this.node })
+                this.jobLogViewerInstance.start({ node: this.node })
             ).toBeRejectedWithError(/Requires a job id to start/);
         });
 
@@ -276,6 +288,16 @@ define([
                     });
                 });
                 itHasJobStatus();
+                it('should have the correct widget state', function() {
+                    testWidgetState(this, {
+                        fsm: {mode: 'new'},
+                        widget: {
+                            jobStatusListening: true,
+                            jobLogWaiting: false,
+                            jobLogLooping: false,
+                        }
+                    })
+                })
             });
 
             JobsData.validJobs.forEach((jobState) => {
@@ -289,6 +311,11 @@ define([
                         });
                     });
                     itHasJobStatus();
+                    it(`should have the correct widget state for a job with status ${this.jobState.status}`, function() {
+                        testWidgetState(this, {
+                            fsm: jobState.meta.logViewerFsm,
+                        })
+                    })
                 });
             });
 
@@ -495,7 +522,7 @@ define([
         });
 
         // the log display
-        describe('job log viewer', () => {
+        describe('job log display', () => {
             beforeEach(function () {
                 createLogViewer(this, false, 50);
             });
@@ -637,10 +664,11 @@ define([
                     expect(this.node.querySelector('[data-element="log-panel"]').textContent).toBe(
                         'No log entries to show.'
                     );
-                    const widgetState = getWidgetState(this.node);
-                    expect(widgetState.looping).toBe(true);
-                    expect(widgetState.awaitingLog).toBe(true);
-                    expect(widgetState.listeningForJob).toBe(true);
+
+                    const widgetState = this.jobLogViewerInstance.widgetState()
+                    expect(widgetState.widget.jobLogLooping).toBe(true);
+                    expect(widgetState.widget.jobLogWaiting).toBe(true);
+                    expect(widgetState.widget.jobStatusListening).toBe(true);
                 });
             });
 
@@ -699,18 +727,240 @@ define([
                         expect(
                             this.node.querySelector('[data-element="log-panel"]').textContent
                         ).toBe('No log entries to show.');
-                        const widgetState = getWidgetState(this.node);
-                        expect(widgetState.looping).toBe(false);
-                        expect(widgetState.listeningForJob).toBe(false);
+                        const widgetState = this.jobLogViewerInstance.widgetState()
+                        expect(widgetState.widget.jobLogLooping).toBe(false);
+                        expect(widgetState.widget.jobLogWaiting).toBe(false);
+                        expect(widgetState.widget.jobStatusListening).toBe(false);
                     });
                 });
             });
         });
-
-        xit('Should have the top button go to the top', () => {});
-
-        xit('Should have the bottom button go to the end', () => {});
-
-        xit('Should have the stop button make sure it stops', () => {});
     });
+
+
+    xdescribe('lifecycle', () => {
+        beforeEach(function () {
+            createLogViewer(this, false, 50);
+        });
+
+        describe('initial widget state', () => {
+            it('starts in mode "new" with no initial job', async function() {
+                await this.jobLogViewerInstance.start({
+                    node: this.node,
+                    jobId: 'no state set',
+                });
+                testWidgetState(this, {
+                    fsm: {mode: 'new'},
+                    widget: {
+                        jobStatusListening: true,
+                        jobLogWaiting: false,
+                        jobLogLooping: false,
+                    }
+                })
+            })
+            JobsData.validJobs.forEach((jobState) => {
+                beforeEach(async function () {
+                    this.jobState = jobState;
+                    await this.jobLogViewerInstance.start({
+                        node: this.node,
+                        jobId: jobState.job_id,
+                        jobState: jobState,
+                    });
+                });
+                it(`starts in mode "new" when given a job with status ${this.jobState.status}`, function() {
+                    testWidgetState(this, {
+                        fsm: {mode: 'new'},
+                        widget: {
+                            jobStatusListening: true,
+                            jobLogWaiting: false,
+                            jobLogLooping: false,
+                        }
+                    })
+                })
+            });
+        });
+
+        // job updates received
+
+        const stopUpdateStatuses = ['completed', 'error', 'terminated'];
+        stopUpdateStatuses.forEach((status) => {
+            it(`should stop requesting updates with job status ${status}`, async function (done) {
+                const jobState = jobsByStatus[status],
+                    counter = {
+                        update: 0,
+                        status: 0,
+                        all: 0,
+                    },
+                    changeArr = [];
+
+                this.runtimeBus.on('request-job-status', async (msg) => {
+                    expect(msg).toEqual({ jobId: jobState.job_id });
+                    counter.status++;
+                    // check the DOM
+                    testJobStatus(this);
+                    createMutationObserver(this.node, changeArr);
+                    await emitJobUpdates(this.runtimeBus, Array(5).fill(jobState));
+                });
+
+                this.runtimeBus.on('request-job-update', (msg) => {
+                    expect(msg).toEqual({ jobId: jobState.job_id });
+                    counter.update++;
+                });
+
+                this.runtimeBus.listen({
+                    channel: {
+                        jobId: jobState.job_id,
+                    },
+                    key: {
+                        type: 'job-status',
+                    },
+                    handle: () => {
+                        counter.all++;
+                    },
+                });
+
+                await this.jobLogViewerInstance.start({
+                    node: this.node,
+                    jobId: jobState.job_id,
+                });
+
+                setTimeout(() => {
+                    expect(counter).toEqual({
+                        update: 0,
+                        status: 1,
+                        all: 5,
+                    });
+                    console.log(...changeArr);
+                    const finalState = document.createElement('div');
+                    finalState.innerHTML = changeArr.pop();
+                    done();
+                }, JOB_UPDATE_FREQUENCY * 100);
+            });
+        });
+
+        const continueUpdateStatuses = ['created', 'estimating', 'queued', 'running'];
+        continueUpdateStatuses.forEach((status) => {
+            it(`should request another update with job status ${status}`, async function (done) {
+                const jobState = jobsByStatus[status],
+                    counter = {
+                        update: 0,
+                        status: 0,
+                        all: 0,
+                    },
+                    changeArr = [];
+
+                this.runtimeBus.on('request-job-status', async (msg) => {
+                    expect(msg).toEqual({ jobId: jobState.job_id });
+                    counter.status++;
+                    // check the DOM
+                    testJobStatus(this);
+                    createMutationObserver(this.node, changeArr);
+                    await emitJobUpdates(this.runtimeBus, Array(5).fill(jobState));
+                });
+
+                this.runtimeBus.on('request-job-update', (msg) => {
+                    counter.update++;
+                    expect(msg).toEqual({ jobId: jobState.job_id });
+                });
+
+                this.runtimeBus.listen({
+                    channel: {
+                        jobId: jobState.job_id,
+                    },
+                    key: {
+                        type: 'job-status',
+                    },
+                    handle: () => {
+                        counter.all++;
+                    },
+                });
+
+                await this.jobLogViewerInstance.start({
+                    node: this.node,
+                    jobId: jobState.job_id,
+                });
+
+                setTimeout(() => {
+                    expect(counter).toEqual({
+                        update: 1,
+                        status: 1,
+                        all: 5,
+                    });
+                    console.log(...changeArr);
+                    done();
+                }, JOB_UPDATE_FREQUENCY * 100);
+            });
+        });
+
+        const jobProgressionStatuses = [
+            'created',
+            'estimating',
+            'queued',
+            'queued',
+            'running',
+            'running',
+            'running',
+            'error',
+            'error',
+            'error',
+        ];
+        it('should progress through states', async function (done) {
+            const jobState = jobsByStatus['created'],
+                counter = {
+                    update: 0,
+                    status: 0,
+                    all: 0,
+                },
+                changeArr = [],
+                updateCount = jobProgressionStatuses.length;
+
+            this.runtimeBus.on('request-job-status', async (msg) => {
+                expect(msg).toEqual({ jobId: jobState.job_id });
+                counter.status++;
+                // check the DOM
+                testJobStatus(this);
+                createMutationObserver(this.node, changeArr);
+                await emitJobUpdates(
+                    this.runtimeBus,
+                    jobProgressionStatuses.map((status) => {
+                        return Object.assign({}, jobsByStatus[status], { job_id: jobState.job_id });
+                    })
+                );
+            });
+
+            this.runtimeBus.on('request-job-update', (msg) => {
+                counter.update++;
+                expect(msg).toEqual({ jobId: jobState.job_id });
+            });
+
+            this.runtimeBus.listen({
+                channel: {
+                    jobId: jobState.job_id,
+                },
+                key: {
+                    type: 'job-status',
+                },
+                handle: () => {
+                    counter.all++;
+                },
+            });
+
+            await this.jobLogViewerInstance.start({
+                node: this.node,
+                jobId: jobState.job_id,
+            });
+
+            setTimeout(() => {
+                expect(counter).toEqual({
+                    update: 1,
+                    status: 1,
+                    all: 10,
+                });
+                expect(changeArr.length).toEqual(4);
+                done();
+            }, JOB_UPDATE_FREQUENCY * 100);
+        });
+    });
+
+
 });

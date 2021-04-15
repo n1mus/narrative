@@ -1,4 +1,4 @@
-define(['narrativeConfig', './testAppObj-ci', 'json!./testAppObj-prod.json'], (
+define(['narrativeConfig', './testAppObj-ci', './testAppObj-prod'], (
     Config,
     TestDataCi,
     TestDataProd
@@ -9,8 +9,8 @@ define(['narrativeConfig', './testAppObj-ci', 'json!./testAppObj-prod.json'], (
     switch (env) {
         case 'ci':
         case 'dev':
-            return TestDataCi;
+            return TestDataCi.generate();
         default:
-            return TestDataProd;
+            return TestDataProd.generate();
     }
 });

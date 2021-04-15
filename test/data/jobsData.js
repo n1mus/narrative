@@ -50,6 +50,7 @@ define(['common/format'], (format) => {
                     label: 'created',
                 },
                 appCellFsm: { mode: 'processing', stage: 'queued' },
+                logViewerFsm: { mode: 'queued' },
             },
         },
         {
@@ -69,6 +70,7 @@ define(['common/format'], (format) => {
                     label: 'estimating',
                 },
                 appCellFsm: { mode: 'processing', stage: 'queued' },
+                logViewerFsm: { mode: 'queued' },
             },
         },
         {
@@ -89,6 +91,7 @@ define(['common/format'], (format) => {
                     label: 'queued',
                 },
                 appCellFsm: { mode: 'processing', stage: 'queued' },
+                logViewerFsm: { mode: 'queued' },
             },
         },
         {
@@ -110,6 +113,7 @@ define(['common/format'], (format) => {
                     label: 'cancellation',
                 },
                 appCellFsm: { mode: 'canceled' },
+                logViewerFsm: { mode: 'terminated' },
             },
         },
         {
@@ -131,6 +135,7 @@ define(['common/format'], (format) => {
                     label: 'running',
                 },
                 appCellFsm: { mode: 'processing', stage: 'running' },
+                logViewerFsm: { mode: 'running' },
             },
         },
         {
@@ -157,6 +162,7 @@ define(['common/format'], (format) => {
                     label: 'cancellation',
                 },
                 appCellFsm: { mode: 'canceled' },
+                logViewerFsm: { mode: 'terminated' },
             },
         },
         {
@@ -187,6 +193,7 @@ define(['common/format'], (format) => {
                 },
                 errorString: 'Queue error: Error code: 666',
                 appCellFsm: { mode: 'error', stage: 'queued' },
+                logViewerFsm: { mode: 'error' },
             },
         },
         {
@@ -218,6 +225,7 @@ define(['common/format'], (format) => {
                 },
                 errorString: 'Server error: Error code: -32000',
                 appCellFsm: { mode: 'error', stage: 'running' },
+                logViewerFsm: { mode: 'error' },
             },
         },
         {
@@ -240,6 +248,7 @@ define(['common/format'], (format) => {
                     label: 'success',
                 },
                 appCellFsm: { mode: 'success' },
+                logViewerFsm: { mode: 'completed' },
             },
             result: [
                 {
@@ -268,6 +277,7 @@ define(['common/format'], (format) => {
                 class: 'kb-job-status__summary--does_not_exist',
                 label: 'does not exist',
             },
+            logViewerFsm: { mode: 'does_not_exist' },
         },
     };
 

@@ -1,7 +1,85 @@
 define([], () => {
     'use strict';
 
+    const orderedStates = [
+        {
+            mode: 'new',
+        },
+        {
+            mode: 'editing',
+            params: 'incomplete',
+        },
+        {
+            mode: 'editing-batch',
+            params: 'incomplete',
+        },
+        {
+            mode: 'editing',
+            params: 'complete',
+            code: 'built',
+        },
+        {
+            mode: 'editing-batch',
+            params: 'complete',
+            code: 'built',
+        },
+        {
+            mode: 'execute-requested',
+        },
+        {
+            mode: 'error',
+            stage: 'launching',
+        },
+        {
+            mode: 'processing',
+            stage: 'launched',
+        },
+        {
+            mode: 'processing',
+            stage: 'queued',
+        },
+        {
+            mode: 'error',
+            stage: 'queued',
+        },
+        {
+            mode: 'processing',
+            stage: 'running',
+        },
+        {
+            mode: 'error',
+            stage: 'running',
+        },
+        {
+            mode: 'processing',
+            stage: 'partial-complete',
+        },
+        {
+            mode: 'canceling',
+        },
+        {
+            mode: 'canceled',
+        },
+        {
+            mode: 'success',
+        },
+        {
+            mode: 'error',
+        },
+        {
+            mode: 'internal-error',
+        },
+    ];
+
+    // create an index of the states
+    const stateIx = {};
+    orderedStates.forEach((state, ix) => {
+        const key = state.mode && state.stage ? `${state.mode}__${state.stage}` : state.mode;
+        stateIx[key] = ix;
+    });
+
     const appStates = [
+        // new
         {
             state: {
                 mode: 'new',
@@ -62,6 +140,7 @@ define([], () => {
                 },
             ],
         },
+        // editing - incomplete
         {
             state: {
                 mode: 'editing',
@@ -164,6 +243,7 @@ define([], () => {
                 },
             ],
         },
+        // editing - complete
         {
             state: {
                 mode: 'editing',
@@ -304,6 +384,7 @@ define([], () => {
                 },
             ],
         },
+        // batch editing - incomplete
         {
             state: {
                 mode: 'editing-batch',
@@ -410,6 +491,7 @@ define([], () => {
                 },
             ],
         },
+        // batch editing - complete
         {
             state: {
                 mode: 'editing-batch',
@@ -554,6 +636,7 @@ define([], () => {
                 },
             ],
         },
+        // execute-requested
         {
             state: {
                 mode: 'execute-requested',
@@ -642,16 +725,65 @@ define([], () => {
             },
             next: [
                 {
+                    mode: 'error',
+                    stage: 'launching',
+                },
+                {
                     mode: 'processing',
                     stage: 'launched',
                 },
                 {
-                    mode: 'error',
+                    mode: 'processing',
+                    stage: 'queued',
+                },
+                {
+                    mode: 'processing',
+                    stage: 'running',
                 },
                 {
                     mode: 'error',
-                    stage: 'launching',
                 },
+                // {
+                //     mode: 'error',
+                //     stage: 'launching',
+                // },
+                // {
+                //     mode: 'processing',
+                //     stage: 'launched',
+                // },
+                // {
+                //     mode: 'processing',
+                //     stage: 'queued',
+                // },
+                {
+                    mode: 'error',
+                    stage: 'queued',
+                },
+                // {
+                //     mode: 'processing',
+                //     stage: 'running',
+                // },
+                {
+                    mode: 'processing',
+                    stage: 'partial-complete',
+                },
+                {
+                    mode: 'canceling',
+                },
+                {
+                    mode: 'canceled',
+                },
+                {
+                    mode: 'success',
+                },
+                // {
+                //     mode: 'error',
+                // },
+                {
+                    mode: 'error',
+                    stage: 'running',
+                },
+
                 {
                     mode: 'editing',
                     params: 'complete',
@@ -662,6 +794,7 @@ define([], () => {
                 },
             ],
         },
+        // processing - launched
         {
             state: {
                 mode: 'processing',
@@ -773,6 +906,7 @@ define([], () => {
                 },
             ],
         },
+        // processing - queued
         {
             state: {
                 mode: 'processing',
@@ -843,17 +977,16 @@ define([], () => {
             next: [
                 {
                     mode: 'processing',
+                    stage: 'queued',
+                },
+                {
+                    mode: 'processing',
                     stage: 'running',
                 },
                 {
                     mode: 'processing',
                     stage: 'partial-complete',
                 },
-                {
-                    mode: 'processing',
-                    stage: 'queued',
-                },
-
                 {
                     mode: 'canceled',
                 },
@@ -889,7 +1022,7 @@ define([], () => {
                 },
             ],
         },
-
+        // processing - running
         {
             state: {
                 mode: 'processing',
@@ -993,6 +1126,7 @@ define([], () => {
                 },
             ],
         },
+        // processing - partial complete
         {
             state: {
                 mode: 'processing',
@@ -1092,6 +1226,7 @@ define([], () => {
                 },
             ],
         },
+        // cancelling the app run
         {
             state: {
                 mode: 'canceling',
@@ -1186,6 +1321,7 @@ define([], () => {
                 },
             ],
         },
+        // app run cancelled
         {
             state: {
                 mode: 'canceled',
@@ -1264,6 +1400,7 @@ define([], () => {
                 },
             ],
         },
+        // success
         {
             state: {
                 mode: 'success',
@@ -1345,7 +1482,7 @@ define([], () => {
                 },
             ],
         },
-
+        // launch error
         {
             state: {
                 mode: 'error',
@@ -1406,6 +1543,7 @@ define([], () => {
                 },
             ],
         },
+        // error during queueing
         {
             state: {
                 mode: 'error',
@@ -1489,6 +1627,7 @@ define([], () => {
                 },
             ],
         },
+        // runtime app error
         {
             state: {
                 mode: 'error',
@@ -1692,5 +1831,10 @@ define([], () => {
             ],
         },
     ];
-    return appStates;
+
+    return {
+        appStates,
+        stateIx,
+        orderedStates,
+    };
 });

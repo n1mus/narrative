@@ -1,6 +1,58 @@
 // process.env.CHROME_BIN = require('puppeteer').executablePath();
 module.exports = function (config) {
     'use strict';
+
+    // remove the existing spec dir line
+    // const newFiles = config.files.map((line) => {
+    //     // turn off JS file caching
+    //     if (typeof line === 'object' && line.pattern.indexOf('.js') >= 0) {
+    //         if (line.pattern.indexOf('test/unit/spec') >= 0) {
+    //             return null
+    //         }
+
+    //         line.nocache = true;
+    //         return line
+    //     }
+    // })
+    // .filter((line) => (line))
+
+    // enter the path of any files to be excluded from testing here
+    const doNotRun = [
+        // 'narrative_core/jobCommChannel-spec.js',
+        'util/jobLogViewerSpec.js',
+        // 'util/BootstrapDialogSpec.js',
+        // 'appWidgets/input/select2ObjectinputSpec.js',
+        // 'appWidgets/input/taxonomyRefInputSpec.js',
+    ].map((item) => {
+        return {
+            pattern: `test/unit/spec/${item}`,
+            included: false,
+            served: false,
+            watched: false,
+            nocache: true,
+        };
+    });
+
+    // include files in these directories
+    const unitTestDirs = [
+        'api',
+        'appWidgets',
+        'common',
+        'function_output',
+        'narrative_core',
+        'nbextensions',
+        'util',
+        'vis',
+        // include files directly in the test/unit/spec dir
+        '',
+    ].map((item) => {
+        return item.length ? `${item}/**/` : item;
+    });
+
+    const testFiles = unitTestDirs.map((item) => {
+        return { pattern: `test/unit/spec/${item}*.js`, included: false, nocache: true };
+    });
+
     config.set({
         basePath: '../../',
         frameworks: ['jasmine', 'requirejs', 'es6-shim'],
@@ -44,7 +96,9 @@ module.exports = function (config) {
             { pattern: 'test/unit/testUtil.js', nocache: true },
             { pattern: 'test/unit/mocks.js', nocache: true },
             { pattern: 'test/unit/test-main.js', nocache: true },
-            { pattern: 'test/unit/spec/**/*.js', included: false, nocache: true },
+            // { pattern: 'test/unit/spec/**/*.js', included: false, nocache: true },
+            ...doNotRun,
+            ...testFiles,
             { pattern: 'test/testConfig.json', included: false, nocache: true },
             { pattern: 'test/*.tok', included: false, nocache: true },
             { pattern: 'test/data/**/*', included: false },
@@ -85,7 +139,13 @@ module.exports = function (config) {
         ],
         // test results reporter to use
         // available reporters: https://npmjs.org/browse/keyword/karma-reporter
-        reporters: ['mocha', 'coverage', 'json-result'],
+        reporters: [
+            'kjhtml',
+            'brief',
+            // 'mocha',
+            // 'coverage',
+            // 'json-result'
+        ],
         coverageReporter: {
             type: 'html',
             dir: 'js-coverage/',
