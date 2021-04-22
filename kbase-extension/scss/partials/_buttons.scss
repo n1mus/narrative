@@ -88,19 +88,19 @@
     text-decoration: none;
   }
 
-  &:active,
-  &.active {
-    background-image: none;
-    outline: 0;
-    box-shadow: inset 0 3px 5px rgba(0, 0, 0, .125);
-  }
-
   &.disabled,
   &[disabled],
   fieldset[disabled] & {
     cursor: $cursor-disabled;
     opacity: 0.8;
     box-shadow: none;
+  }
+
+  &:active,
+  &.active {
+    background-image: none;
+    outline: 0;
+    box-shadow: inset 0 3px 5px rgba(0, 0, 0, .125);
   }
 }
 
@@ -120,4 +120,12 @@
   @extend %kbase-button;
 
   @include button-size($padding-large-vertical, $padding-large-horizontal, $font-size-large, $line-height-large, $btn-border-radius-large);
+}
+
+@each $theme-colour in $theme-colours {
+  %kbase-button-#{$theme-colour} {
+    @extend %kbase-button;
+
+    @include button-variant(use_color($theme-colour), use_color('#{$theme-colour}-lightest'), transparent);
+  }
 }

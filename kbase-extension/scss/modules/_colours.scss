@@ -121,6 +121,8 @@ $kbase-palette: (
   "disabled-dark": rgb(157, 147, 137),
 );
 
+$theme-colours: 'base', 'primary', 'secondary', 'accent-cool', 'accent-warm', 'success', 'info', 'warning', 'error';
+
 $icons: (
   // specialised use cases
   "icon-app": map-get($kbase-palette, 'purple'),

@@ -53,13 +53,8 @@ define([
     const CELL_TYPE = 'app-bulk-import';
 
     const div = html.tag('div'),
+        p = html.tag('p'),
         cssCellType = 'kb-bulk-import';
-
-    // TODO: remove once jobs are hooked up to cell
-    const testDataModel = Props.make({
-        data: TestAppObj,
-        onUpdate: () => {},
-    });
 
     function DefaultWidget() {
         function make() {
@@ -240,8 +235,23 @@ define([
         if (options.initialize) {
             initialize(options.specs);
         }
+
+        // move the jobState info elsewhere
+        TestAppObj.exec.oldJobState = TestAppObj.exec.jobState;
+        delete TestAppObj.exec.jobState;
+
         const model = Props.make({
-                data: Utils.getMeta(cell, 'bulkImportCell'),
+                // TODO: Remove and replace with the commented-out line below
+                // once the backend is hooked up
+                data: Object.assign(
+                    {},
+                    Utils.getMeta(cell, 'bulkImportCell'),
+                    // execution data
+                    { exec: TestAppObj.exec },
+                    // output data
+                    { output: TestAppObj.output }
+                ),
+                // data: Utils.getMeta(cell, 'bulkImportCell'),
                 onUpdate: function (props) {
                     Utils.setMeta(cell, 'bulkImportCell', props.getRawObject());
                 },
@@ -484,12 +494,12 @@ define([
         }
 
         /**
-         * Update the execMessage panel with details of the active job
+         * Update the execMessage panel with details of the active jobs
          */
         function updateJobState() {
-            // TODO: this will need to be updated once the backend is in place
-            const jobState = testDataModel.getItem('exec.jobState');
-            controlPanel.setExecMessage(Jobs.createCombinedJobState(jobState));
+            const indexedJobs = model.getItem('exec.jobs.byId');
+            const jobStateArray = indexedJobs ? Object.values(indexedJobs) : [];
+            controlPanel.setExecMessage(Jobs.createCombinedJobState(jobStateArray));
         }
 
         /* JOB MANAGEMENT */
@@ -501,10 +511,13 @@ define([
          */
         function cancelJob(jobId) {
             // TODO: implement
-            alert(`Cancel job ${jobId}`);
-            // runtime.bus().emit('request-job-cancellation', {
-            //     jobId: jobId,
-            // });
+            const jobState = model.getItem(`exec.jobs.byId.${jobId}`);
+            if (jobState && Jobs.canCancel(jobState)) {
+                alert(`Cancel job ${jobId}`);
+                // runtime.bus().emit('request-job-cancellation', {
+                //     jobId: jobId,
+                // });
+            }
         }
 
         /**
@@ -512,13 +525,55 @@ define([
          *
          * @param {string} status
          */
-        function cancelJobsByStatus(status) {
+        function cancelJobsByStatus(statusList) {
             const validStates = ['created', 'estimating', 'queued', 'running'];
-            if (!validStates.includes(status)) {
-                throw new Error(`${status} is not a valid job state`);
+            statusList.forEach((status) => {
+                if (!validStates.includes(status)) {
+                    throw new Error(`${status} is not a valid job state`);
+                }
+            });
+
+            const jobsByStatus = model.getItem('exec.jobs.byStatus');
+            const jobsToCancel = statusList
+                .map((status) => {
+                    return jobsByStatus[status] ? Object.keys(jobsByStatus[status]) : [];
+                })
+                .flat();
+
+            if (!jobsToCancel.length) {
+                return;
             }
-            // TODO: implement
-            alert(`Cancel jobs with status ${status}`);
+
+            // count the number of jobs in the specified state
+            const jobString = !jobsToCancel.length === 1 ? '1 job' : jobsToCancel.length + ' jobs';
+            const jobLabel = Jobs.jobLabel({ status: status === 'running' ? 'running' : 'queued' });
+
+            const confirmationMessage = div([
+                p([
+                    `Canceling all ${jobLabel} jobs will terminate the processing of ${jobString}. `,
+                    'Any output objects already created will remain in your narrative and can be removed from the Data panel.',
+                ]),
+                p(`Cancel all ${jobLabel} jobs?`),
+            ]);
+            ui.showConfirmDialog({
+                title: `Cancel ${jobLabel} jobs?`,
+                body: confirmationMessage,
+            }).then((confirmed) => {
+                if (!confirmed) {
+                    return;
+                }
+                // TODO: implement
+                alert(
+                    `Cancel jobs with statuses: ${statusList.join(', ')}: ${jobsToCancel.join(
+                        ', '
+                    )}`
+                );
+                // jobsToCancel.forEach((jobId) => {
+                //     runtime.bus().emit('request-job-cancellation', {
+                //         jobId: jobId,
+                //     });
+                // })
+            });
         }
 
         /**
@@ -527,22 +582,61 @@ define([
          * @param {string} jobId
          */
         function retryJob(jobId) {
-            // TODO: implement
-            alert(`Retry job ${jobId}`);
+            const jobState = model.getItem(`exec.jobs.byId.${jobId}`);
+            if (jobState && Jobs.canRetry(jobState)) {
+                alert(`Retry job ${jobId}`);
+            }
         }
 
         /**
          * Retry all jobs that ended with the specified status
          *
-         * @param {string} status
+         * @param {string} statusList
          */
-        function retryJobsByStatus(status) {
+        function retryJobsByStatus(statusList) {
             const validStates = ['error', 'terminated'];
-            if (!validStates.includes(status)) {
-                throw new Error(`${status} is not a valid job state`);
+            statusList.forEach((status) => {
+                if (!validStates.includes(status)) {
+                    throw new Error(`${status} is not a valid job state`);
+                }
+            });
+            const jobsByStatus = model.getItem('exec.jobs.byStatus');
+            const jobsToRetry = statusList
+                .map((status) => {
+                    return jobsByStatus[status] ? Object.keys(jobsByStatus[status]) : [];
+                })
+                .flat();
+
+            if (!jobsToRetry.length) {
+                return;
             }
-            // TODO: implement
-            alert(`Retry jobs with status ${status}`);
+
+            // count the number of jobs in the specified state
+            const jobString = jobsToRetry.length === 1 ? '1 job' : jobsToRetry.length + ' jobs';
+            const jobLabel = Jobs.jobLabel({ status: status });
+
+            const confirmationMessage = div([
+                p([
+                    `Retrying all ${jobLabel} jobs will restart the processing of ${jobString}. `,
+                    'Any output objects already created will remain in your narrative and can be removed from the Data panel.',
+                ]),
+                status === 'error'
+                    ? p(
+                          'Please note that jobs are rerun using the same parameters. Any jobs that failed due to issues with the input, such as misconfigured parameters or corrupted input data, are likely to throw the same errors when run again.'
+                      )
+                    : '',
+                p(`Retry all ${jobLabel} jobs?`),
+            ]);
+            ui.showConfirmDialog({
+                title: `Retry ${jobLabel} Jobs?`,
+                body: confirmationMessage,
+            }).then((confirmed) => {
+                if (!confirmed) {
+                    return;
+                }
+                // TODO: implement
+                alert(`Retry jobs with status ${statusList.join(', ')}: ${jobsToRetry.join(', ')}`);
+            });
         }
 
         const jobManager = {
@@ -550,6 +644,7 @@ define([
             cancelJobsByStatus,
             retryJob,
             retryJobsByStatus,
+            updateJobState,
         };
 
         // add in an alias to switch to the results panel for the job status table
@@ -628,7 +723,7 @@ define([
             FSMBar.showFsmBar({
                 ui: ui,
                 state: {},
-                job: testDataModel.getItem('exec.jobState'),
+                indexedJobs: model.getItem('exec.jobs.byId'),
             });
         }
 
@@ -679,19 +774,14 @@ define([
          * @param {string} fileType
          */
         function runTab(tab, fileType) {
-            let tabModel = model;
-            // TODO: Remove once jobs and results are hooked up
-            if (tab === 'jobStatus' || tab === 'results') {
-                tabModel = testDataModel;
-            }
             tabWidget = tabSet.tabs[tab].widget.make({
                 bus: controllerBus,
                 cell,
-                jobManager,
-                model: tabModel,
-                spec: specs[typesToFiles[state.fileType.selected].appId],
                 fileType,
                 jobId: undefined,
+                jobManager,
+                model,
+                spec: specs[typesToFiles[state.fileType.selected].appId],
                 workspaceClient,
             });
 

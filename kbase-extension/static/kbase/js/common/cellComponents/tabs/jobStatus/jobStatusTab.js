@@ -6,9 +6,7 @@ define(['bluebird', 'common/html', './jobStateList'], (Promise, html, JobStateLi
         dataElementName = 'kb-job-list-wrapper';
 
     function factory(config) {
-        const widgets = {},
-            { model } = config;
-        let container;
+        let container, jobStateListWidget;
 
         function renderLayout() {
             return div({
@@ -30,26 +28,22 @@ define(['bluebird', 'common/html', './jobStateList'], (Promise, html, JobStateLi
                 container.classList.add('kb-job__tab_container');
                 container.innerHTML = renderLayout();
 
-                // rows are widgets to enable live updates
-                widgets.stateList = JobStateList.make(config);
-                return Promise.all([
-                    widgets.stateList.start({
+                jobStateListWidget = JobStateList.make(config);
+                return Promise.try(() => {
+                    jobStateListWidget.start({
                         node: container.querySelector(`[data-element="${dataElementName}"]`),
-                        jobState: model.getItem('exec.jobState'),
-                    }),
-                ]);
+                    });
+                });
             });
         }
 
         function stop() {
             return Promise.try(() => {
                 container.innerHTML = '';
-                if (widgets) {
-                    return Promise.all(
-                        Object.keys(widgets).map((key) => {
-                            return widgets[key].stop();
-                        })
-                    );
+                if (jobStateListWidget) {
+                    return Promise.try(() => {
+                        jobStateListWidget.stop();
+                    });
                 }
             });
         }
@@ -62,8 +56,7 @@ define(['bluebird', 'common/html', './jobStateList'], (Promise, html, JobStateLi
 
     return {
         /**
-         * Requires a Props object with the current jobState object at
-         * `exec.jobState`
+         * This should be (or resemble) the config object from the bulkImportCell
          *
          * @param {object} config
          */

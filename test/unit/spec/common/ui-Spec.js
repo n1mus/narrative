@@ -579,4 +579,124 @@ define(['common/ui'], (UI) => {
             expect(bananaButton.textContent).toMatch(/the great big banana!/);
         });
     });
+
+    fdescribe('dialog function', () => {
+        let container;
+        beforeEach(function () {
+            container = document.createElement('div');
+            this.ui = UI.make({ node: container });
+            this.container = container;
+        });
+        afterEach(() => {
+            container.remove();
+        });
+
+        describe('showConfirmDialog', () => {
+            it('is created', async function () {
+                // expect the modal container no longer to exist
+                // expect the promise to have been resolved true|false
+
+                await this.ui
+                    .showConfirmDialog({ title: 'showConfirmDialog', body: 'blah blah blah' })
+                    .then((confirmed) => {
+                        // this.container.querySelector('[data-dismiss]').click();
+                        expect(confirmed).toBeFalse();
+                    });
+            });
+        });
+
+        describe('showInfoDialog', () => {
+            it('is created', async function () {
+                await this.ui
+                    .showInfoDialog({
+                        title: 'show info dialog - click button',
+                        body: 'some old crap',
+                        okLabel: 'YAY!',
+                    })
+                    .then((outcome) => {
+                        expect(outcome).toBeFalse();
+                    });
+
+                await this.ui
+                    .showInfoDialog({
+                        title: 'show info dialog - click dismiss',
+                        body: 'some old crap',
+                        okLabel: 'YAY!',
+                    })
+                    .then((outcome) => {
+                        expect(outcome).toBeFalse();
+                    });
+
+                await this.ui
+                    .showInfoDialog({
+                        title: 'show info dialog - click background',
+                        body: 'some old crap',
+                        okLabel: 'YAY!',
+                    })
+                    .then((outcome) => {
+                        expect(outcome).toBeFalse();
+                    });
+
+                // this.container.querySelector('[data-dismiss]').click();
+            });
+        });
+
+        describe('showErrorDialog', () => {
+            it('is created', async function () {
+                await this.ui
+                    .showErrorDialog({
+                        title: 'show error dialog - button',
+                        error: Error('string'),
+                    })
+                    .then((outcome) => {
+                        expect(outcome).toBeFalse();
+                    });
+
+                await this.ui
+                    .showErrorDialog({
+                        title: 'show error dialog - dismiss',
+                        error: Error('string'),
+                    })
+                    .then((outcome) => {
+                        expect(outcome).toBeFalse();
+                    });
+
+                await this.ui
+                    .showErrorDialog({
+                        title: 'show error dialog - background',
+                        error: Error('string'),
+                    })
+                    .then((outcome) => {
+                        expect(outcome).toBeFalse();
+                    });
+                // this.container.querySelector('[data-dismiss]').click();
+            });
+        });
+
+        fdescribe('showDialog', () => {
+            it('is created', async function () {
+                await this.ui.showDialog({
+                    title: 'show dialog',
+                    body: 'some old crap',
+                    cancelLabel: 'WHATEVER!',
+                    buttons: [
+                        {
+                            action: 'link',
+                            label: 'View in App Catalog',
+                            handler: function () {
+                                return {
+                                    url: 'https://example.com',
+                                    name: 'hello world',
+                                };
+                            },
+                        },
+                    ],
+                    options: {
+                        width: '70%',
+                    },
+                });
+                // this.container.querySelector('[data-dismiss]').click();
+            });
+        });
+    });
 });
