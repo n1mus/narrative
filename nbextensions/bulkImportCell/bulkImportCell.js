@@ -514,9 +514,9 @@ define([
             const jobState = model.getItem(`exec.jobs.byId.${jobId}`);
             if (jobState && Jobs.canCancel(jobState)) {
                 alert(`Cancel job ${jobId}`);
-                // runtime.bus().emit('request-job-cancellation', {
-                //     jobId: jobId,
-                // });
+                runtime.bus().emit('request-job-cancellation', {
+                    jobId: jobId,
+                });
             }
         }
 
@@ -568,11 +568,11 @@ define([
                         ', '
                     )}`
                 );
-                // jobsToCancel.forEach((jobId) => {
-                //     runtime.bus().emit('request-job-cancellation', {
-                //         jobId: jobId,
-                //     });
-                // })
+                jobsToCancel.forEach((jobId) => {
+                    runtime.bus().emit('request-job-cancellation', {
+                        jobId: jobId,
+                    });
+                })
             });
         }
 
